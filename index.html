@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Resume Reviewer · Gemini</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Unbounded:wght@300;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f0e;
+    --surface: #131614;
+    --surface2: #1a1d1b;
+    --border: #252825;
+    --border2: #353a36;
+    --accent: #6ee7a0;
+    --accent-dim: rgba(110,231,160,0.08);
+    --text: #e2ede6;
+    --muted: #6b7a6e;
+    --danger: #f87171;
+    --warn: #fbbf24;
+    --mono: 'JetBrains Mono', monospace;
+    --display: 'Unbounded', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; line-height: 1.7; min-height: 100vh; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
+
+  header { margin-bottom: 40px; }
+  .eyebrow { font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .eyebrow::before { content: ''; width: 18px; height: 1px; background: var(--accent); }
+  h1 { font-family: var(--display); font-size: clamp(26px, 5vw, 42px); font-weight: 700; line-height: 1.05; letter-spacing: -0.03em; margin-bottom: 8px; }
+  h1 em { color: var(--accent); font-style: normal; }
+  .sub { color: var(--muted); font-size: 12px; max-width: 480px; }
+
+  .key-setup { background: var(--accent-dim); border: 1px solid rgba(110,231,160,0.2); border-radius: 6px; padding: 16px 20px; margin-bottom: 20px; }
+  .key-setup p { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .key-setup a { color: var(--accent); text-underline-offset: 3px; }
+  .key-row { display: flex; gap: 8px; }
+  .key-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border2); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 9px 12px; outline: none; }
+  .key-row input:focus { border-color: var(--accent); }
+  .key-row input::placeholder { color: var(--muted); }
+  .save-btn { background: var(--accent); color: #0d0f0e; border: none; border-radius: 4px; font-family: var(--mono); font-weight: 700; font-size: 11px; padding: 9px 14px; cursor: pointer; white-space: nowrap; }
+  .save-btn:hover { opacity: 0.85; }
+  .key-saved { font-size: 11px; color: var(--accent); margin-top: 6px; display: none; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px; margin-bottom: 12px; }
+  .slabel { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .slabel .n { width: 18px; height: 18px; border: 1px solid rgba(110,231,160,0.4); border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+
+  textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-family: var(--mono); font-size: 12px; line-height: 1.7; padding: 12px; resize: vertical; min-height: 200px; outline: none; transition: border-color 0.2s; }
+  textarea:focus { border-color: var(--border2); }
+  textarea::placeholder { color: var(--muted); }
+
+  .roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 7px; }
+  .rbtn { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-family: var(--mono); font-size: 11px; padding: 9px; cursor: pointer; transition: all .15s; text-align: center; }
+  .rbtn:hover { border-color: var(--border2); color: var(--text); }
+  .rbtn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+  .go { width: 100%; background: var(--accent); color: #0d0f0e; border: none; border-radius: 4px; font-family: var(--display); font-weight: 700; font-size: 13px; padding: 15px; cursor: pointer; transition: all .2s; letter-spacing: 0.02em; }
+  .go:hover { opacity: 0.85; transform: translateY(-1px); }
+  .go:active { transform: translateY(0); }
+  .go:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+  .loader { display: none; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin-top: 12px; }
+  .loader.on { display: flex; }
+  .dots span { display: inline-block; width: 5px; height: 5px; background: var(--accent); border-radius: 50%; animation: bl 1.2s infinite; }
+  .dots span:nth-child(2) { animation-delay: .2s; }
+  .dots span:nth-child(3) { animation-delay: .4s; }
+  @keyframes bl { 0%,100%{opacity:.2}50%{opacity:1} }
+
+  .err { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); border-radius: 4px; padding: 12px 14px; color: var(--danger); font-size: 12px; display: none; margin-top: 10px; line-height: 1.6; }
+
+  #results { display: none; margin-top: 20px; }
+  .scorebar { display: flex; align-items: center; gap: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px; margin-bottom: 12px; }
+  .circle { width: 58px; height: 58px; border-radius: 50%; border: 1.5px solid var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: var(--accent); flex-shrink: 0; font-family: var(--display); }
+  .circle.warn { border-color: var(--warn); color: var(--warn); }
+  .circle.bad { border-color: var(--danger); color: var(--danger); }
+
+  .scard { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+  .shead { padding: 12px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background .15s; }
+  .shead:hover { background: var(--surface2); }
+  .sdot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .sdot.ok { background: var(--accent); }
+  .sdot.warn { background: var(--warn); }
+  .sdot.bad { background: var(--danger); }
+  .stitle { font-size: 13px; font-weight: 500; flex: 1; }
+  .sgrade { font-size: 10px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+  .chev { font-size: 10px; color: var(--muted); transition: transform .2s; }
+  .chev.open { transform: rotate(90deg); }
+  .sbody { display: none; padding: 12px 16px; border-top: 1px solid var(--border); }
+  .sbody.open { display: block; }
+  .issue { padding: 8px 12px; background: var(--surface2); border-left: 2px solid var(--border2); margin-bottom: 6px; font-size: 12px; }
+  .issue.warn { border-left-color: var(--warn); }
+  .issue.bad { border-left-color: var(--danger); }
+  .issue.ok { border-left-color: var(--accent); }
+  .ilbl { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+  .rw { margin-top: 10px; padding: 10px 12px; background: var(--accent-dim); border: 1px solid rgba(110,231,160,0.18); border-radius: 4px; }
+  .rwlbl { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); margin-bottom: 5px; }
+  .rwtext { font-size: 12px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
+
+  .hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .hint a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="eyebrow">AI Agent · Gemini Flash · бесплатно</div>
+    <h1>ML Resume<br><em>Reviewer</em></h1>
+    <p class="sub">Анализирует резюме начинающего ML-специалиста, находит слабые места и переписывает формулировки.</p>
+  </header>
+
+  <!-- API Key -->
+  <div class="key-setup">
+    <p>Нужен бесплатный API-ключ Google Gemini — получи за 30 секунд на <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a> (кнопка «Create API key»). Ключ хранится только в браузере.</p>
+    <div class="key-row">
+      <input type="password" id="apiKey" placeholder="AIza...">
+      <button class="save-btn" onclick="saveKey()">Сохранить</button>
+    </div>
+    <div class="key-saved" id="keySaved">✓ Ключ сохранён</div>
+  </div>
+
+  <!-- Resume -->
+  <div class="panel">
+    <div class="slabel"><span class="n">1</span> Текст резюме</div>
+    <textarea id="resumeText" placeholder="Вставь сюда текст резюме...
+
+Например:
+— Python, pandas, sklearn, pytorch
+— Проект: классификация текста, accuracy 85%
+— Курс «ML от Яндекса», Stepik Deep Learning School
+— Ищу стажировку или junior позицию"></textarea>
+  </div>
+
+  <!-- Role -->
+  <div class="panel">
+    <div class="slabel"><span class="n">2</span> Желаемая роль</div>
+    <div class="roles" id="roleGrid">
+      <button class="rbtn active" data-role="ML Engineer">ML Engineer</button>
+      <button class="rbtn" data-role="Data Scientist">Data Scientist</button>
+      <button class="rbtn" data-role="MLOps Engineer">MLOps Engineer</button>
+      <button class="rbtn" data-role="CV Engineer">CV Engineer</button>
+      <button class="rbtn" data-role="NLP Engineer">NLP Engineer</button>
+      <button class="rbtn" data-role="Data Analyst">Data Analyst</button>
+    </div>
+  </div>
+
+  <button class="go" id="goBtn" onclick="analyze()">Анализировать резюме →</button>
+
+  <div class="loader" id="loader">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <span id="lmsg">читаю резюме...</span>
+  </div>
+
+  <div class="err" id="errBox"></div>
+
+  <div id="results">
+    <div class="scorebar">
+      <div class="circle" id="scoreCircle">–</div>
+      <div>
+        <p style="font-weight:500;font-size:14px;margin-bottom:3px" id="scoreSummary">Анализ завершён</p>
+        <p style="font-size:11px;color:#6b7a6e" id="scoreRole"></p>
+      </div>
+    </div>
+    <div id="secs"></div>
+  </div>
+
+  <p class="hint" style="margin-top:24px">Gemini 2.0 Flash · бесплатный tier: 1500 запросов/день · <a href="https://aistudio.google.com/app/apikey" target="_blank">получить ключ</a></p>
+</div>
+
+<script>
+let role = 'ML Engineer';
+
+document.querySelectorAll('.rbtn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.rbtn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    role = b.dataset.role;
+  });
+});
+
+function saveKey() {
+  const v = document.getElementById('apiKey').value.trim();
+  if (!v) return;
+  localStorage.setItem('gemini_key', v);
+  document.getElementById('keySaved').style.display = 'block';
+}
+
+window.addEventListener('load', () => {
+  const k = localStorage.getItem('gemini_key');
+  if (k) {
+    document.getElementById('apiKey').value = k;
+    document.getElementById('keySaved').style.display = 'block';
+  }
+});
+
+const msgs = ['читаю резюме...', 'ищу слабые места...', 'анализирую формулировки...', 'готовлю фидбек...'];
+let mi = 0, mint;
+
+async function analyze() {
+  const key = localStorage.getItem('gemini_key') || document.getElementById('apiKey').value.trim();
+  if (!key) { showErr('Сначала введи и сохрани API-ключ Gemini.'); return; }
+
+  const text = document.getElementById('resumeText').value.trim();
+  if (!text) { showErr('Вставь текст резюме.'); return; }
+
+  const btn = document.getElementById('goBtn');
+  const loader = document.getElementById('loader');
+  btn.disabled = true;
+  loader.classList.add('on');
+  document.getElementById('errBox').style.display = 'none';
+  document.getElementById('results').style.display = 'none';
+
+  mi = 0;
+  mint = setInterval(() => {
+    mi = (mi + 1) % msgs.length;
+    document.getElementById('lmsg').textContent = msgs[mi];
+  }, 2000);
+
+  const prompt = `Ты строгий ревьюер резюме для junior ML-специалистов. Целевая роль: ${role}.
+
+Проанализируй резюме по 5 секциям: Навыки, Проекты, Опыт, Образование и курсы, Общее оформление.
+
+Для каждой секции:
+- status: "ok" | "warn" | "bad"
+- grade: "сильно" | "средне" | "слабо"
+- issues: массив из 1-3 конкретных проблем (пустой если всё хорошо)
+- rewrite: переписанная версия слабых формулировок (строка) или null
+
+Отвечай ТОЛЬКО валидным JSON без markdown, без пояснений:
+{"score":7,"summary":"Одно предложение итога","sections":[{"title":"Навыки","status":"ok","grade":"средне","issues":[],"rewrite":null}]}
+
+Резюме:
+${text}`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
+        })
+      }
+    );
+
+    clearInterval(mint);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = err?.error?.message || `HTTP ${res.status}`;
+      if (res.status === 400) showErr('Неверный API-ключ. Проверь ключ на aistudio.google.com/app/apikey');
+      else if (res.status === 429) showErr('Превышен лимит запросов. Подожди минуту и попробуй снова.');
+      else showErr('Ошибка Gemini API: ' + msg);
+      return;
+    }
+
+    const data = await res.json();
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    render(parsed);
+
+  } catch (e) {
+    clearInterval(mint);
+    showErr('Ошибка: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    loader.classList.remove('on');
+  }
+}
+
+function render(d) {
+  const sc = document.getElementById('scoreCircle');
+  sc.textContent = d.score + '/10';
+  sc.className = 'circle' + (d.score >= 7 ? '' : d.score >= 4 ? ' warn' : ' bad');
+  document.getElementById('scoreSummary').textContent = d.summary || 'Анализ завершён';
+  document.getElementById('scoreRole').textContent = 'Роль: ' + role;
+
+  const cont = document.getElementById('secs');
+  cont.innerHTML = '';
+  (d.sections || []).forEach(sec => {
+    const issHtml = (sec.issues || []).map(i =>
+      `<div class="issue ${sec.status}"><div class="ilbl">проблема</div>${i}</div>`
+    ).join('');
+    const rwHtml = sec.rewrite
+      ? `<div class="rw"><div class="rwlbl">как написать лучше</div><div class="rwtext">${sec.rewrite}</div></div>`
+      : '';
+
+    const card = document.createElement('div');
+    card.className = 'scard';
+    card.innerHTML = `
+      <div class="shead" onclick="tog(this)">
+        <div class="sdot ${sec.status}"></div>
+        <div class="stitle">${sec.title}</div>
+        <div class="sgrade">${sec.grade || ''}</div>
+        <div class="chev">▶</div>
+      </div>
+      <div class="sbody">
+        ${issHtml}${rwHtml}
+        ${!issHtml && !rwHtml ? '<p style="font-size:12px;color:#6b7a6e">Раздел выглядит хорошо.</p>' : ''}
+      </div>`;
+    cont.appendChild(card);
+
+    if (sec.status !== 'ok') {
+      card.querySelector('.shead').classList.add('open');
+      card.querySelector('.sbody').classList.add('open');
+      card.querySelector('.chev').classList.add('open');
+    }
+  });
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+function tog(h) {
+  const b = h.nextElementSibling;
+  const c = h.querySelector('.chev');
+  const o = b.classList.toggle('open');
+  c.classList.toggle('open', o);
+}
+
+function showErr(m) {
+  const e = document.getElementById('errBox');
+  e.textContent = m;
+  e.style.display = 'block';
+}
+</script>
+</body>
+</html>
