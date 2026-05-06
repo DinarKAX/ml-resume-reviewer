@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ML Resume Reviewer · Gemini</title>
+<title>ML Resume Reviewer · Groq</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Unbounded:wght@300;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -107,16 +107,16 @@
 <div class="container">
 
   <header>
-    <div class="eyebrow">AI Agent · Gemini Flash · бесплатно</div>
+    <div class="eyebrow">AI Agent · Groq · бесплатно</div>
     <h1>ML Resume<br><em>Reviewer</em></h1>
     <p class="sub">Анализирует резюме начинающего ML-специалиста, находит слабые места и переписывает формулировки.</p>
   </header>
 
   <!-- API Key -->
   <div class="key-setup">
-    <p>Нужен бесплатный API-ключ Google Gemini — получи за 30 секунд на <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a> (кнопка «Create API key»). Ключ хранится только в браузере.</p>
+    <p>Нужен бесплатный API-ключ Groq — получи за 30 секунд на <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a> (кнопка «Create API key»). Ключ хранится только в браузере.</p>
     <div class="key-row">
-      <input type="password" id="apiKey" placeholder="AIza...">
+      <input type="password" id="apiKey" placeholder="gsk_...">
       <button class="save-btn" onclick="saveKey()">Сохранить</button>
     </div>
     <div class="key-saved" id="keySaved">✓ Ключ сохранён</div>
@@ -167,7 +167,7 @@
     <div id="secs"></div>
   </div>
 
-  <p class="hint" style="margin-top:24px">Gemini 2.0 Flash · бесплатный tier: 1500 запросов/день · <a href="https://aistudio.google.com/app/apikey" target="_blank">получить ключ</a></p>
+  <p class="hint" style="margin-top:24px">Groq · бесплатно · ~14 400 запросов/день · <a href="https://console.groq.com/keys" target="_blank">получить ключ</a></p>
 </div>
 
 <script>
@@ -184,12 +184,12 @@ document.querySelectorAll('.rbtn').forEach(b => {
 function saveKey() {
   const v = document.getElementById('apiKey').value.trim();
   if (!v) return;
-  localStorage.setItem('gemini_key', v);
+  localStorage.setItem('groq_key', v);
   document.getElementById('keySaved').style.display = 'block';
 }
 
 window.addEventListener('load', () => {
-  const k = localStorage.getItem('gemini_key');
+  const k = localStorage.getItem('groq_key');
   if (k) {
     document.getElementById('apiKey').value = k;
     document.getElementById('keySaved').style.display = 'block';
@@ -200,8 +200,8 @@ const msgs = ['читаю резюме...', 'ищу слабые места...',
 let mi = 0, mint;
 
 async function analyze() {
-  const key = localStorage.getItem('gemini_key') || document.getElementById('apiKey').value.trim();
-  if (!key) { showErr('Сначала введи и сохрани API-ключ Gemini.'); return; }
+  const key = localStorage.getItem('groq_key') || document.getElementById('apiKey').value.trim();
+  if (!key) { showErr('Сначала введи и сохрани API-ключ Groq.'); return; }
 
   const text = document.getElementById('resumeText').value.trim();
   if (!text) { showErr('Вставь текст резюме.'); return; }
@@ -236,31 +236,33 @@ async function analyze() {
 ${text}`;
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.3, maxOutputTokens: 1500 }
-        })
-      }
-    );
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.3,
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
 
     clearInterval(mint);
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const msg = err?.error?.message || `HTTP ${res.status}`;
-      if (res.status === 400) showErr('Неверный API-ключ. Проверь ключ на aistudio.google.com/app/apikey');
+      if (res.status === 401) showErr('Неверный API-ключ. Проверь ключ на console.groq.com/keys');
       else if (res.status === 429) showErr('Превышен лимит запросов. Подожди минуту и попробуй снова.');
-      else showErr('Ошибка Gemini API: ' + msg);
+      else showErr('Ошибка Groq API: ' + msg);
       return;
     }
 
     const data = await res.json();
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const raw = data?.choices?.[0]?.message?.content || '';
     const clean = raw.replace(/```json|```/g, '').trim();
     const parsed = JSON.parse(clean);
     render(parsed);
